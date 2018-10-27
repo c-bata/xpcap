@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <sysexits.h>
 #include <signal.h>
+#include <sys/select.h>
 
 #include "sniffer.h"
 #include "analyzer.h"
@@ -26,24 +27,13 @@ sig_int_handler(int sig)
 void
 capture_loop(Sniffer *sniffer)
 {
-#ifdef __MACH__
-    CapturedInfo info;
-    int dataLength;
-    while((dataLength = read_bpf_packet_data(sniffer, &info)) != -1) {
-        if (g_gotsig) {
-            break;
-        }
-        AnalyzerOption opt;
-        opt.verbose = cli_param.verbose;
-        opt.port = cli_param.port;
-        analyze_packet((uint8_t *) info.data, (size_t) dataLength, opt);
-    }
-#elif __linux__
-    uint8_t buf[2048];
+    AnalyzerOption opt;
+    opt.verbose = cli_param.verbose;
+    opt.port = cli_param.port;
+
     struct timeval timeout;
     fd_set mask;
-    int width;
-    ssize_t len;
+    int width, len, ready;
     while (g_gotsig == 0) {
         FD_ZERO(&mask);
         FD_SET(sniffer->fd, &mask);
@@ -51,30 +41,30 @@ capture_loop(Sniffer *sniffer)
 
         timeout.tv_sec = 3;
         timeout.tv_usec = 0;
-        switch (select(width, (fd_set *) &mask, NULL, NULL, &timeout)) {
-            case -1:
-                /* Error */
-                perror("select");
-                break;
-            case 0:
-                /* Timeout */
-                break;
-            default:
-                /* Ready */
-                if (FD_ISSET(sniffer->fd, &mask)){
-                    if ((len = recv(sniffer->fd, buf, sizeof(buf), 0)) == -1){
-                        perror("read");
-                    } else {
-                        AnalyzerOption opt;
-                        opt.verbose = cli_param.verbose;
-                        opt.port = cli_param.port;
-                        analyze_packet(buf, len, opt);
-                    }
-                }
-                break;
+        ready = select(width, &mask, NULL, NULL, &timeout);
+        if (ready == -1) {
+            perror("select");
+            break;
+        } else if (ready == 0) {
+            fprintf(stderr, "select timeout");
+            break;
+        }
+
+        if (FD_ISSET(sniffer->fd, &mask)){
+            if ((len = read_new_packets(sniffer)) == -1) {
+                perror("read");
+                continue;
+            }
+
+#ifdef __MACH__
+            CapturedInfo info;
+            while((len = parse_bpf_packets(sniffer, &info)) > 0)
+                analyze_packet((uint8_t *) info.data, (size_t) len, opt);
+#elif __linux__
+            analyze_packet((uint8_t *) sniffer->buffer, (size_t) len, opt);
+#endif
         }
     }
-#endif
 }
 
 int
@@ -115,8 +105,8 @@ main(int argc, char *argv[])
     signal(SIGINT, sig_int_handler);
 
     SnifferParams params;
-    strcpy(params.interfaceName, cli_param.device);
-    params.bufferLength = 4096;
+    strcpy(params.ifr_name, cli_param.device);
+    params.buf_len = 4096;
 
     Sniffer sniffer;
     if (new_sniffer(params, &sniffer) == -1)
