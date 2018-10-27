@@ -1,23 +1,15 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <fcntl.h>
-#include <sys/uio.h>
-#include <unistd.h>
 #include <string.h>
-#include <sys/errno.h>
 #include <sys/types.h>
-#include <sys/ioctl.h>
-#include <net/bpf.h>
-#include <netinet/tcp.h>
-#include <netinet/ip.h>
-#include <netinet/if_ether.h>
-#include <netinet/in.h>
-#include <net/if.h>
 #include <arpa/inet.h>
 #include <sysexits.h>
+#include <signal.h>
 
-#include "bpf.h"
+#include "sniffer.h"
 #include "analyzer.h"
+
+static int g_gotsig = 0;
 
 struct  {
     char *device;
@@ -25,6 +17,65 @@ struct  {
     int verbose;
 } cli_param = {"", 0, 0};
 
+void
+sig_int_handler(int sig)
+{
+    g_gotsig = sig;
+}
+
+void
+capture_loop(Sniffer *sniffer)
+{
+#ifdef __MACH__
+    CapturedInfo info;
+    int dataLength;
+    while((dataLength = readBpfPacketData(sniffer, &info)) != -1) {
+        if (g_gotsig) {
+            break;
+        }
+        AnalyzerOption opt;
+        opt.verbose = cli_param.verbose;
+        opt.port = cli_param.port;
+        analyze_packet((uint8_t *) info.data, (size_t) dataLength, opt);
+    }
+#elif __linux__
+    uint8_t buf[2048];
+    struct timeval timeout;
+    fd_set mask;
+    int width;
+    ssize_t len;
+    while (g_gotsig == 0) {
+        FD_ZERO(&mask);
+        FD_SET(sniffer->fd, &mask);
+        width = sniffer->fd + 1;
+
+        timeout.tv_sec = 3;
+        timeout.tv_usec = 0;
+        switch (select(width, (fd_set *) &mask, NULL, NULL, &timeout)) {
+            case -1:
+                /* Error */
+                perror("select");
+                break;
+            case 0:
+                /* Timeout */
+                break;
+            default:
+                /* Ready */
+                if (FD_ISSET(sniffer->fd, &mask)){
+                    if ((len = recv(sniffer->fd, buf, sizeof(buf), 0)) == -1){
+                        perror("read");
+                    } else {
+                        AnalyzerOption opt;
+                        opt.verbose = cli_param.verbose;
+                        opt.port = cli_param.port;
+                        analyze_packet(buf, len, opt);
+                    }
+                }
+                break;
+        }
+    }
+#endif
+}
 
 int
 main(int argc, char *argv[])
@@ -43,29 +94,22 @@ main(int argc, char *argv[])
             cli_param.port = atoi(argv[i]);
         }
     }
+    fprintf(stderr, "++++++++++++++++++++++++++++++++++++++++\n");
+    fprintf(stderr, "device = %s, verbose = %d, port = %d\n",
+            cli_param.device, cli_param.verbose, cli_param.port);
+    fprintf(stderr, "++++++++++++++++++++++++++++++++++++++++\n\n");
 
-    fprintf(stderr,
-            "verbose = %d, port = %d", cli_param.verbose, cli_param.port);
+    signal(SIGINT, sig_int_handler);
 
-    BpfOption option;
-    strcpy(option.interfaceName, cli_param.device);
-    option.bufferLength = 32767;
-    printBpfOptions(option);
+    SnifferParams params;
+    strcpy(params.interfaceName, cli_param.device);
+    params.bufferLength = 4096;
 
-    BpfSniffer sniffer;
-    if (newBpfSniffer(option, &sniffer) == -1)
+    Sniffer sniffer;
+    if (newSniffer(params, &sniffer) == -1)
         return EXIT_FAILURE;
 
-    printBpfSnifferParams(sniffer);
-
-    CapturedInfo info;
-    int dataLength;
-    while((dataLength = readBpfPacketData(&sniffer, &info)) != -1) {
-        AnalyzerOption opt;
-        opt.verbose = cli_param.verbose;
-        opt.port = cli_param.port;
-        analyze_packet((uint8_t *) info.data, (size_t) dataLength, opt);
-    }
-    closeBpfSniffer(&sniffer);
+    capture_loop(&sniffer);
+    closeSniffer(&sniffer);
     return EXIT_SUCCESS;
 }
