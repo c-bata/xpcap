@@ -87,7 +87,7 @@ int newBpfSniffer(BpfOption option, BpfSniffer *sniffer)
         return -1;
     }
 
-    sniffer->buffer = malloc(sizeof(char) * option.bufferLength);
+    sniffer->buffer = malloc(sizeof(char) * sniffer->bufferLength);
     return 0;
 }
 
