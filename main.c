@@ -29,7 +29,7 @@ capture_loop(Sniffer *sniffer)
 #ifdef __MACH__
     CapturedInfo info;
     int dataLength;
-    while((dataLength = readBpfPacketData(sniffer, &info)) != -1) {
+    while((dataLength = read_bpf_packet_data(sniffer, &info)) != -1) {
         if (g_gotsig) {
             break;
         }
@@ -106,10 +106,10 @@ main(int argc, char *argv[])
     params.bufferLength = 4096;
 
     Sniffer sniffer;
-    if (newSniffer(params, &sniffer) == -1)
+    if (new_sniffer(params, &sniffer) == -1)
         return EXIT_FAILURE;
 
     capture_loop(&sniffer);
-    closeSniffer(&sniffer);
+    close_sniffer(&sniffer);
     return EXIT_SUCCESS;
 }

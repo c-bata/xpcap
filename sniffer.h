@@ -23,14 +23,14 @@ typedef struct {
 } CapturedInfo;
 
 int
-newSniffer(SnifferParams params, Sniffer *sniffer);
+new_sniffer(SnifferParams params, Sniffer *sniffer);
 
 int
-closeSniffer(Sniffer *sniffer);
+close_sniffer(Sniffer *sniffer);
 
 #ifdef __MACH__
 int
-readBpfPacketData(Sniffer *sniffer, CapturedInfo *info);
+read_bpf_packet_data(Sniffer *sniffer, CapturedInfo *info);
 #endif
 
 #endif //XPCAP_SNIFFER_H

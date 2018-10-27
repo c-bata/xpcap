@@ -32,7 +32,7 @@
 
 #ifdef __MACH__
 int
-pickBpfDevice(Sniffer *sniffer)
+pick_bpf_device(Sniffer *sniffer)
 {
     char dev[11] = {0};
     for (int i = 0; i < 99; ++i) {
@@ -47,10 +47,10 @@ pickBpfDevice(Sniffer *sniffer)
 }
 
 int
-newBpfSniffer(SnifferParams params, Sniffer *sniffer)
+new_bpf_sniffer(SnifferParams params, Sniffer *sniffer)
 {
     if (strlen(params.deviceName) == 0) {
-        if (pickBpfDevice(sniffer) == -1)
+        if (pick_bpf_device(sniffer) == -1)
             return -1;
     } else {
         sniffer->fd = open(params.deviceName, O_RDWR);
@@ -99,7 +99,7 @@ newBpfSniffer(SnifferParams params, Sniffer *sniffer)
 }
 #elif __linux__
 int
-newRawSocketSniffer(SnifferParams params, Sniffer *sniffer)
+new_raw_socket_sniffer(SnifferParams params, Sniffer *sniffer)
 {
     struct ifreq if_req;
     struct sockaddr_ll sa;
@@ -151,18 +151,18 @@ newRawSocketSniffer(SnifferParams params, Sniffer *sniffer)
 #endif
 
 int
-newSniffer(SnifferParams params, Sniffer *sniffer)
+new_sniffer(SnifferParams params, Sniffer *sniffer)
 {
 #ifdef __MACH__
-    return newBpfSniffer(params, sniffer);
+    return new_bpf_sniffer(params, sniffer);
 #elif __linux__
-    return newRawSocketSniffer(params, sniffer);
+    return new_raw_socket_sniffer(params, sniffer);
 #endif
 }
 
 #ifdef __MACH__
 int
-readBpfPacketData(Sniffer *sniffer, CapturedInfo *info)
+read_bpf_packet_data(Sniffer *sniffer, CapturedInfo *info)
 {
     struct bpf_hdr *bpfPacket;
     if (sniffer->readBytesConsumed + sizeof(sniffer->buffer) >= sniffer->lastReadLength) {
@@ -186,7 +186,7 @@ readBpfPacketData(Sniffer *sniffer, CapturedInfo *info)
 #endif
 
 int
-closeSniffer(Sniffer *sniffer)
+close_sniffer(Sniffer *sniffer)
 {
     free(sniffer->buffer);
     if (close(sniffer->fd) == -1)

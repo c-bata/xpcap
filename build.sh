@@ -1,10 +1,6 @@
 #!/bin/bash
 set -e
 
-rm *.o
-rm *.a
-rm xpcap
-
 gcc -g -Wall -O0 -c printer.c
 ar rusv libprinter.a printer.o
 
