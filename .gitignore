@@ -1,7 +1,10 @@
+# Object files and Binaries
 *.o
 *.a
 *.dylib
 *.so
 *.dSYM/
+xpcap
 
+## Cmake
 cmake-build-debug/
