@@ -1,0 +1,7 @@
+*.o
+*.a
+*.dylib
+*.so
+*.dSYM/
+
+cmake-build-debug/
