@@ -16,6 +16,9 @@
 	"===============================================\n"); }
 
 void
+print_data(const uint8_t *data, size_t size);
+
+void
 print_ether_header(struct ether_header *eh);
 
 void

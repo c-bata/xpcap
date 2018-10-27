@@ -29,6 +29,41 @@
 #include "printer.h"
 
 void
+print_data(const uint8_t *data, size_t size)
+{
+    int i, j;
+    (void) printf("data--------------------------------------------------------"
+                  "--------------------\n");
+    for (i = 0; i < size; i++) {
+        for (j = 0; j < 16; j++) {
+            if (j != 0) {
+                (void) printf(" ");
+            }
+            if (i + j < size) {
+                (void) printf("%02X", *(data + j));
+            } else {
+                (void) printf("  ");
+            }
+        }
+        (void) printf("    ");
+        for (j = 0; j < 16; j++) {
+            if (i < size) {
+                if (isascii(*data) && isprint(*data)) {
+                    (void) printf("%c", *data);
+                } else {
+                    (void) printf(".");
+                }
+                data++;
+                i++;
+            } else {
+                (void) printf(" ");
+            }
+        }
+        (void) printf("\n");
+    }
+}
+
+void
 print_ether_header(struct ether_header *eh)
 {
     int i;
@@ -378,6 +413,7 @@ print_icmp(struct icmp *icmp, unsigned char *hptr, int size)
     if (icmp->icmp_type == 0 || icmp->icmp_type == 8) {
         printf("icmp_id = %u, ", ntohs(icmp->icmp_id));
         printf("icmp_seq = %u\n", ntohs(icmp->icmp_seq));
+        print_data(hptr+8, size-8);
     } else if (icmp->icmp_type == 3) {
         if (icmp->icmp_code == 4) {
             printf("icmp_pmvoid = %u\n", ntohs(icmp->icmp_pmvoid));
