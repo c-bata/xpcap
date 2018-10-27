@@ -1,80 +1,115 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <fcntl.h>
-#include <sys/uio.h>
-#include <unistd.h>
 #include <string.h>
-#include <sys/errno.h>
 #include <sys/types.h>
-#include <sys/ioctl.h>
-#include <net/bpf.h>
-#include <netinet/tcp.h>
-#include <netinet/ip.h>
-#include <netinet/if_ether.h>
-#include <netinet/in.h>
-#include <net/if.h>
 #include <arpa/inet.h>
+#include <sysexits.h>
+#include <signal.h>
 
-#include "bpf.h"
+#include "sniffer.h"
+#include "analyzer.h"
 
-int main()
+static int g_gotsig = 0;
+
+struct  {
+    char *device;
+    int port;
+    int verbose;
+} cli_param = {"", 0, 0};
+
+void
+sig_int_handler(int sig)
 {
-    BpfOption option;
-    strcpy(option.interfaceName, "en0");
-    option.bufferLength = 32767;
-    printBpfOptions(option);
+    g_gotsig = sig;
+}
 
-    BpfSniffer sniffer;
-    if (newBpfSniffer(option, &sniffer) == -1)
-        return 1;
-
-    printBpfSnifferParams(sniffer);
-
+void
+capture_loop(Sniffer *sniffer)
+{
+#ifdef __MACH__
     CapturedInfo info;
     int dataLength;
-    while((dataLength = readBpfPacketData(&sniffer, &info)) != -1) {
-        printf("--------------------------------------------------\n");
-        printf("Payload length: %d\n", dataLength);
-        struct ether_header* eh = (struct ether_header*)info.data;
-        printf(" Ethernet Frame\n");
-        printf("  src mac address: %x:%x:%x:%x:%x:%x\n",
-               eh->ether_shost[0],
-               eh->ether_shost[1],
-               eh->ether_shost[2],
-               eh->ether_shost[3],
-               eh->ether_shost[4],
-               eh->ether_shost[5]);
+    while((dataLength = readBpfPacketData(sniffer, &info)) != -1) {
+        if (g_gotsig) {
+            break;
+        }
+        AnalyzerOption opt;
+        opt.verbose = cli_param.verbose;
+        opt.port = cli_param.port;
+        analyze_packet((uint8_t *) info.data, (size_t) dataLength, opt);
+    }
+#elif __linux__
+    uint8_t buf[2048];
+    struct timeval timeout;
+    fd_set mask;
+    int width;
+    ssize_t len;
+    while (g_gotsig == 0) {
+        FD_ZERO(&mask);
+        FD_SET(sniffer->fd, &mask);
+        width = sniffer->fd + 1;
 
-        printf("  dst mac address: %x:%x:%x:%x:%x:%x\n",
-               eh->ether_dhost[0],
-               eh->ether_dhost[1],
-               eh->ether_dhost[2],
-               eh->ether_dhost[3],
-               eh->ether_dhost[4],
-               eh->ether_dhost[5]);
-
-        if (ntohs(eh->ether_type) == ETHERTYPE_IP) {
-            printf("  type: IPv4, %x\n", eh->ether_type);
-
-            struct ip* ip = (struct ip*)((long)eh + sizeof(struct ether_header));
-            printf(" IP Frame\n");
-            printf("  headerLength: %d\n", ip->ip_hl * 4);
-            printf("  version: %d\n", ip->ip_v);
-            printf("  protocol: %d\n", ip->ip_p);
-            printf("  ttl: %d\n", ip->ip_ttl);
-            printf("  dst ip: %s\n", inet_ntoa(ip->ip_dst));
-            printf("  src ip: %s\n", inet_ntoa(ip->ip_src));
-
-            if (ip->ip_p == IPPROTO_TCP) {
-                struct tcphdr* tcp = (struct tcphdr*)((long)ip + (ip->ip_hl * 4));
-                printf(" TCP Packet\n");
-                printf("  dst port: %d\n", tcp->th_dport);
-                printf("  src port: %d\n", tcp->th_sport);
-            }
-        } else {
-            printf("  type: Other, %x\n", eh->ether_type);
+        timeout.tv_sec = 3;
+        timeout.tv_usec = 0;
+        switch (select(width, (fd_set *) &mask, NULL, NULL, &timeout)) {
+            case -1:
+                /* Error */
+                perror("select");
+                break;
+            case 0:
+                /* Timeout */
+                break;
+            default:
+                /* Ready */
+                if (FD_ISSET(sniffer->fd, &mask)){
+                    if ((len = recv(sniffer->fd, buf, sizeof(buf), 0)) == -1){
+                        perror("read");
+                    } else {
+                        AnalyzerOption opt;
+                        opt.verbose = cli_param.verbose;
+                        opt.port = cli_param.port;
+                        analyze_packet(buf, len, opt);
+                    }
+                }
+                break;
         }
     }
-    closeBpfSniffer(&sniffer);
-    return 0;
+#endif
+}
+
+int
+main(int argc, char *argv[])
+{
+    int i;
+    if (argc <= 1) {
+        fprintf(stderr, "pdump device [-v] [port-no]\n");
+        return EX_USAGE;
+    }
+
+    cli_param.device = argv[1];
+    for (i = 2; i < argc; i++) {
+        if (strcmp(argv[i], "-v") == 0) {
+            cli_param.verbose = 1;
+        } else {
+            cli_param.port = atoi(argv[i]);
+        }
+    }
+    fprintf(stderr, "++++++++++++++++++++++++++++++++++++++++\n");
+    fprintf(stderr, "device = %s, verbose = %d, port = %d\n",
+            cli_param.device, cli_param.verbose, cli_param.port);
+    fprintf(stderr, "++++++++++++++++++++++++++++++++++++++++\n\n");
+
+    signal(SIGINT, sig_int_handler);
+
+    SnifferParams params;
+    strcpy(params.interfaceName, cli_param.device);
+    params.bufferLength = 4096;
+
+    Sniffer sniffer;
+    if (newSniffer(params, &sniffer) == -1)
+        return EXIT_FAILURE;
+
+    capture_loop(&sniffer);
+    closeSniffer(&sniffer);
+    return EXIT_SUCCESS;
 }

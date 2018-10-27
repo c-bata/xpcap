@@ -6,5 +6,9 @@
 *.dSYM/
 xpcap
 
-## Cmake
+# Cmake
 cmake-build-debug/
+
+# Vagrant
+.vagrant/
+
