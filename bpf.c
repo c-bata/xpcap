@@ -42,6 +42,13 @@ int pickBpfDevice(BpfSniffer *sniffer)
     return -1;
 }
 
+void initBpfSniffer(BpfSniffer *sniffer)
+{
+    sniffer->readBytesConsumed = 0;
+    sniffer->lastReadLength = 0;
+    sniffer->buffer = malloc(sizeof(char) * sniffer->bufferLength);
+}
+
 int newBpfSniffer(BpfOption option, BpfSniffer *sniffer)
 {
     if (strlen(option.deviceName) == 0) {
@@ -87,8 +94,30 @@ int newBpfSniffer(BpfOption option, BpfSniffer *sniffer)
         return -1;
     }
 
-    sniffer->buffer = malloc(sizeof(char) * sniffer->bufferLength);
+    initBpfSniffer(sniffer);
     return 0;
+}
+
+int readBpfPacketData(BpfSniffer *sniffer, CapturedInfo *info)
+{
+    struct bpf_hdr *bpfPacket;
+    if (sniffer->readBytesConsumed + sizeof(sniffer->buffer) >= sniffer->lastReadLength) {
+        sniffer->readBytesConsumed = 0;
+        memset(sniffer->buffer, 0, sniffer->bufferLength);
+
+        ssize_t lastReadLength = read(sniffer->fd, sniffer->buffer, sniffer->bufferLength);
+        if (lastReadLength == -1) {
+            sniffer->lastReadLength = 0;
+            perror("read bpf packet:");
+            return -1;
+        }
+        sniffer->lastReadLength = (unsigned int) lastReadLength;
+    }
+
+    bpfPacket = (struct bpf_hdr*)((long)sniffer->buffer + (long)sniffer->readBytesConsumed);
+    info->data = sniffer->buffer + (long)sniffer->readBytesConsumed + bpfPacket->bh_hdrlen;
+    sniffer->readBytesConsumed += BPF_WORDALIGN(bpfPacket->bh_hdrlen + bpfPacket->bh_caplen);
+    return bpfPacket->bh_datalen;
 }
 
 int closeBpfSniffer(BpfSniffer *sniffer)
