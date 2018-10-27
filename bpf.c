@@ -13,7 +13,8 @@
 
 #include "bpf.h"
 
-void printBpfOptions(BpfOption option)
+void
+printBpfOptions(BpfOption option)
 {
     fprintf(stderr, "BpfOption:\n");
     fprintf(stderr, "  BPF Device: %s\n", option.deviceName);
@@ -21,14 +22,16 @@ void printBpfOptions(BpfOption option)
     fprintf(stderr, "  Buffer Length: %d\n", option.bufferLength);
 }
 
-void printBpfSnifferParams(BpfSniffer sniffer)
+void
+printBpfSnifferParams(BpfSniffer sniffer)
 {
     fprintf(stderr, "BpfSniffer:\n");
     fprintf(stderr, "  Opened BPF Device: %s\n", sniffer.deviceName);
     fprintf(stderr, "  Buffer Length: %d\n", sniffer.bufferLength);
 }
 
-int pickBpfDevice(BpfSniffer *sniffer)
+int
+pickBpfDevice(BpfSniffer *sniffer)
 {
     char dev[11] = {0};
     for (int i = 0; i < 99; ++i) {
@@ -42,14 +45,16 @@ int pickBpfDevice(BpfSniffer *sniffer)
     return -1;
 }
 
-void initBpfSniffer(BpfSniffer *sniffer)
+void
+initBpfSniffer(BpfSniffer *sniffer)
 {
     sniffer->readBytesConsumed = 0;
     sniffer->lastReadLength = 0;
     sniffer->buffer = malloc(sizeof(char) * sniffer->bufferLength);
 }
 
-int newBpfSniffer(BpfOption option, BpfSniffer *sniffer)
+int
+newBpfSniffer(BpfOption option, BpfSniffer *sniffer)
 {
     if (strlen(option.deviceName) == 0) {
         if (pickBpfDevice(sniffer) == -1)
@@ -98,7 +103,8 @@ int newBpfSniffer(BpfOption option, BpfSniffer *sniffer)
     return 0;
 }
 
-int readBpfPacketData(BpfSniffer *sniffer, CapturedInfo *info)
+int
+readBpfPacketData(BpfSniffer *sniffer, CapturedInfo *info)
 {
     struct bpf_hdr *bpfPacket;
     if (sniffer->readBytesConsumed + sizeof(sniffer->buffer) >= sniffer->lastReadLength) {
@@ -120,7 +126,8 @@ int readBpfPacketData(BpfSniffer *sniffer, CapturedInfo *info)
     return bpfPacket->bh_datalen;
 }
 
-int closeBpfSniffer(BpfSniffer *sniffer)
+int
+closeBpfSniffer(BpfSniffer *sniffer)
 {
     free(sniffer->buffer);
 

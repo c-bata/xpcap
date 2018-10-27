@@ -1,5 +1,5 @@
-#ifndef _PCAP_BPF
-#define _PCAP_BPF
+#ifndef XPCAP_BPF_H
+#define XPCAP_BPF_H
 
 typedef struct {
     char deviceName[11];
@@ -20,14 +20,19 @@ typedef struct {
     char *data;
 } CapturedInfo;
 
-void printBpfOptions(BpfOption option);
+void
+printBpfOptions(BpfOption option);
 
-void printBpfSnifferParams(BpfSniffer sniffer);
+void
+printBpfSnifferParams(BpfSniffer sniffer);
 
-int newBpfSniffer(BpfOption option, BpfSniffer *sniffer);
+int
+newBpfSniffer(BpfOption option, BpfSniffer *sniffer);
 
-int readBpfPacketData(BpfSniffer *sniffer, CapturedInfo *info);
+int
+readBpfPacketData(BpfSniffer *sniffer, CapturedInfo *info);
 
-int closeBpfSniffer(BpfSniffer *sniffer);
+int
+closeBpfSniffer(BpfSniffer *sniffer);
 
-#endif /* _PCAP_BPF */
+#endif /* XPCAP_BPF_H */
