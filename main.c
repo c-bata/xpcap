@@ -82,22 +82,35 @@ main(int argc, char *argv[])
 {
     int i;
     if (argc <= 1) {
-        fprintf(stderr, "pdump device [-v] [port-no]\n");
+        fprintf(stderr, "xpcap <device> [-v] [--port port-no]\n");
         return EX_USAGE;
     }
 
+    int skip = 0;
     cli_param.device = argv[1];
     for (i = 2; i < argc; i++) {
+        if (skip) {
+            skip = 0;
+            continue;
+        }
+
         if (strcmp(argv[i], "-v") == 0) {
             cli_param.verbose = 1;
+        } else if (strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "--port") == 0) {
+            if (i+1 >= argc) {
+                fprintf(stderr, "should specify port number after -p or --port option\n");
+                return EX_USAGE;
+            }
+            cli_param.port = atoi(argv[i+1]);
+            skip = 1;
         } else {
-            cli_param.port = atoi(argv[i]);
+            fprintf(stderr, "xpcap <device> [-v] [--port port-no]\n");
+            return EX_USAGE;
         }
     }
-    fprintf(stderr, "++++++++++++++++++++++++++++++++++++++++\n");
+
     fprintf(stderr, "device = %s, verbose = %d, port = %d\n",
             cli_param.device, cli_param.verbose, cli_param.port);
-    fprintf(stderr, "++++++++++++++++++++++++++++++++++++++++\n\n");
 
     signal(SIGINT, sig_int_handler);
 
