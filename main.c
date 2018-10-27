@@ -89,7 +89,7 @@ main(int argc, char *argv[])
     cli_param.device = argv[1];
     for (i = 2; i < argc; i++) {
         if (strcmp(argv[i], "-v") == 0) {
-            cli_param.verbose = 0;
+            cli_param.verbose = 1;
         } else {
             cli_param.port = atoi(argv[i]);
         }
