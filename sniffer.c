@@ -39,7 +39,7 @@ pick_bpf_device(Sniffer *sniffer)
         sprintf(dev, "/dev/bpf%i", i);
         sniffer->fd = open(dev, O_RDWR);
         if (sniffer->fd != -1) {
-            strcpy(sniffer->deviceName, dev);
+            strcpy(sniffer->device, dev);
             return 0;
         }
     }
@@ -49,33 +49,33 @@ pick_bpf_device(Sniffer *sniffer)
 int
 new_bpf_sniffer(SnifferParams params, Sniffer *sniffer)
 {
-    if (strlen(params.deviceName) == 0) {
+    if (strlen(params.device) == 0) {
         if (pick_bpf_device(sniffer) == -1)
             return -1;
     } else {
-        sniffer->fd = open(params.deviceName, O_RDWR);
+        sniffer->fd = open(params.device, O_RDWR);
         if (sniffer->fd != -1)
             return -1;
     }
 
-    if (params.bufferLength == 0) {
+    if (params.buf_len == 0) {
         /* Get Buffer Length */
-        if (ioctl(sniffer->fd, BIOCGBLEN, &sniffer->bufferLength) == -1) {
+        if (ioctl(sniffer->fd, BIOCGBLEN, &sniffer->buf_len) == -1) {
             perror("ioctl BIOCGBLEN");
             return -1;
         }
     } else {
         /* Set Buffer Length */
         /* The buffer must be set before the file is attached to an interface with BIOCSETIF. */
-        if (ioctl(sniffer->fd, BIOCSBLEN, &params.bufferLength) == -1) {
+        if (ioctl(sniffer->fd, BIOCSBLEN, &params.buf_len) == -1) {
             perror("ioctl BIOCSBLEN");
             return -1;
         }
-        sniffer->bufferLength = params.bufferLength;
+        sniffer->buf_len = params.buf_len;
     }
 
     struct ifreq if_req;
-    strcpy(if_req.ifr_name, params.interfaceName);
+    strcpy(if_req.ifr_name, params.interface);
     if(ioctl(sniffer->fd, BIOCSETIF, &if_req) > 0) {
         perror("ioctl BIOCSETIF");
         return -1;
@@ -92,9 +92,9 @@ new_bpf_sniffer(SnifferParams params, Sniffer *sniffer)
         return -1;
     }
 
-    sniffer->readBytesConsumed = 0;
-    sniffer->lastReadLength = 0;
-    sniffer->buffer = malloc(sizeof(char) * sniffer->bufferLength);
+    sniffer->read_bytes_consumed = 0;
+    sniffer->last_read_len = 0;
+    sniffer->buffer = malloc(sizeof(char) * sniffer->buf_len);
     return 0;
 }
 #elif __linux__
@@ -110,7 +110,7 @@ new_raw_socket_sniffer(SnifferParams params, Sniffer *sniffer)
         return -1;
     }
 
-    strcpy(if_req.ifr_name, params.interfaceName);
+    strcpy(if_req.ifr_name, params.interface);
     if (ioctl(soc, SIOCGIFINDEX, &if_req) == -1) {
         perror("ioctl SIOCGIFINDEX");
         close(soc);
@@ -140,11 +140,11 @@ new_raw_socket_sniffer(SnifferParams params, Sniffer *sniffer)
     }
 
     sniffer->fd = soc;
-    sniffer->buffer = malloc(sizeof(char) * sniffer->bufferLength);
-    if (params.bufferLength > 0) {
-        sniffer->bufferLength = params.bufferLength;
+    sniffer->buffer = malloc(sizeof(char) * sniffer->buf_len);
+    if (params.buf_len > 0) {
+        sniffer->buf_len = params.buf_len;
     } else {
-        sniffer->bufferLength = 4096;
+        sniffer->buf_len = 4096;
     }
     return 0;
 }
@@ -160,28 +160,41 @@ new_sniffer(SnifferParams params, Sniffer *sniffer)
 #endif
 }
 
+int
+read_new_packets(Sniffer *sniffer)
+{
+    memset(sniffer->buffer, 0, sniffer->buf_len);
+
+    ssize_t len;
+#ifdef __MACH__
+    sniffer->read_bytes_consumed = 0;
+    if ((len = read(sniffer->fd, sniffer->buffer, sniffer->buf_len)) == -1){
+        sniffer->last_read_len = 0;
+        perror("read:");
+        return -1;
+    }
+    sniffer->last_read_len = (unsigned int) len;
+#elif __linux__
+    if ((len = recv(sniffer->fd, sniffer->buffer, sniffer->buf_len, 0)) == -1){
+        perror("recv:");
+        return -1;
+    }
+#endif
+    return (int) len;
+}
+
 #ifdef __MACH__
 int
-read_bpf_packet_data(Sniffer *sniffer, CapturedInfo *info)
+parse_bpf_packets(Sniffer *sniffer, CapturedInfo *info)
 {
-    struct bpf_hdr *bpfPacket;
-    if (sniffer->readBytesConsumed + sizeof(sniffer->buffer) >= sniffer->lastReadLength) {
-        sniffer->readBytesConsumed = 0;
-        memset(sniffer->buffer, 0, sniffer->bufferLength);
-
-        ssize_t lastReadLength = read(sniffer->fd, sniffer->buffer, sniffer->bufferLength);
-        if (lastReadLength == -1) {
-            sniffer->lastReadLength = 0;
-            perror("read bpf packet:");
-            return -1;
-        }
-        sniffer->lastReadLength = (unsigned int) lastReadLength;
+    if (sniffer->read_bytes_consumed + sizeof(sniffer->buffer) >= sniffer->last_read_len) {
+        return 0;
     }
 
-    bpfPacket = (struct bpf_hdr*)((long)sniffer->buffer + (long)sniffer->readBytesConsumed);
-    info->data = sniffer->buffer + (long)sniffer->readBytesConsumed + bpfPacket->bh_hdrlen;
-    sniffer->readBytesConsumed += BPF_WORDALIGN(bpfPacket->bh_hdrlen + bpfPacket->bh_caplen);
-    return bpfPacket->bh_datalen;
+    info->bpf_hdr = (struct bpf_hdr*)((long)sniffer->buffer + (long)sniffer->read_bytes_consumed);
+    info->data = sniffer->buffer + (long)sniffer->read_bytes_consumed + info->bpf_hdr->bh_hdrlen;
+    sniffer->read_bytes_consumed += BPF_WORDALIGN(info->bpf_hdr->bh_hdrlen + info->bpf_hdr->bh_caplen);
+    return info->bpf_hdr->bh_datalen;
 }
 #endif
 
