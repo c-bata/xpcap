@@ -2,7 +2,7 @@
 
 A Toy Cross-platform Packet Capture, supports Linux, macOS(BSD) without depending on libpcap.
 
-![xpcap](https://user-images.githubusercontent.com/5564044/47607240-66b64a80-da58-11e8-8865-396cdcd27da7.gif)
+![xpcap](https://user-images.githubusercontent.com/5564044/47612189-e411a780-dab8-11e8-94ad-bac70e443e2e.gif)
 
 ## How to run
 
