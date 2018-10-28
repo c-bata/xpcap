@@ -75,7 +75,7 @@ new_bpf_sniffer(SnifferParams params, Sniffer *sniffer)
     }
 
     struct ifreq if_req;
-    strcpy(if_req.ifr_name, params.ifr_name);
+    strcpy(if_req.ifr_name, params.interface);
     if(ioctl(sniffer->fd, BIOCSETIF, &if_req) > 0) {
         perror("ioctl BIOCSETIF");
         return -1;
@@ -110,7 +110,7 @@ new_raw_socket_sniffer(SnifferParams params, Sniffer *sniffer)
         return -1;
     }
 
-    strcpy(if_req.ifr_name, params.ifr_name);
+    strcpy(if_req.ifr_name, params.interface);
     if (ioctl(soc, SIOCGIFINDEX, &if_req) == -1) {
         perror("ioctl SIOCGIFINDEX");
         close(soc);

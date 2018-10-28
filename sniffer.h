@@ -3,7 +3,7 @@
 
 typedef struct {
     char device[11];
-    char ifr_name[16];
+    char interface[16];
     unsigned int buf_len;
 } SnifferParams;
 

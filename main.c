@@ -39,7 +39,7 @@ capture_loop(Sniffer *sniffer)
         FD_SET(sniffer->fd, &mask);
         width = sniffer->fd + 1;
 
-        timeout.tv_sec = 3;
+        timeout.tv_sec = 8;
         timeout.tv_usec = 0;
         ready = select(width, &mask, NULL, NULL, &timeout);
         if (ready == -1) {
@@ -105,7 +105,7 @@ main(int argc, char *argv[])
     signal(SIGINT, sig_int_handler);
 
     SnifferParams params;
-    strcpy(params.ifr_name, cli_param.device);
+    strcpy(params.interface, cli_param.device);
     params.buf_len = 4096;
 
     Sniffer sniffer;
