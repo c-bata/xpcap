@@ -80,3 +80,39 @@ data----------------------------------------------------------------------------
 ================================================================================
 ```
 
+## Supported Protocols
+
+L2
+
+* [x] Ethernet Frame
+
+L3
+
+* [x] IP
+* [x] IPv6
+* [x] ARP
+
+L4
+
+* [x] TCP
+* [x] UDP
+* [x] ICMP
+
+## How works
+
+### NIC and Promiscuous mode
+
+WIP
+
+### RAW Socket
+
+WIP
+
+### Berkeley Packet Filter
+
+WIP
+
+## LICENSE
+
+MIT License.
+
