@@ -122,20 +122,20 @@ new_raw_socket_sniffer(SnifferParams params, Sniffer *sniffer)
     sa.sll_ifindex = if_req.ifr_ifindex;
     if (bind(soc, (struct sockaddr *) &sa, sizeof(sa)) == -1) {
         perror("bind");
-        (void) close(soc);
+        close(soc);
         return (-1);
     }
 
     if (ioctl(soc, SIOCGIFFLAGS, &if_req) == -1) {
         perror("ioctl");
-        (void) close(soc);
+        close(soc);
         return (-1);
     }
 
     if_req.ifr_flags = if_req.ifr_flags|IFF_PROMISC|IFF_UP;
     if (ioctl(soc, SIOCSIFFLAGS, &if_req) == -1) {
         perror("ioctl");
-        (void) close(soc);
+        close(soc);
         return (-1);
     }
 
