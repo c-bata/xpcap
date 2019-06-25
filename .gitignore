@@ -5,6 +5,7 @@
 *.so
 *.dSYM/
 xpcap
+nics
 
 # Cmake
 cmake-build-debug/
